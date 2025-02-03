@@ -70,7 +70,7 @@ func (s *keystrokesKeypresser) DoCommand(ctx context.Context, cmd map[string]int
 	)
 	type Keystroke struct {
 		Type KeypressType `json:"type"`
-		Keys []string     `json:'keys"`
+		Keys []string     `json:"keys"`
 	}
 	type Command struct {
 		Keystrokes []Keystroke `json:"keystrokes"`
