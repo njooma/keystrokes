@@ -1,0 +1,15 @@
+{
+  "$schema": "https://dl.viam.dev/module.schema.json",
+  "module_id": "njooma:keystrokes",
+  "visibility": "private",
+  "url": "",
+  "description": "Modular generic component: keypresser",
+  "models": [
+    {
+      "api": "rdk:component:generic",
+      "model": "njooma:keystrokes:keypresser"
+    }
+  ],
+  "entrypoint": "./run.sh",
+  "first_run": ""
+}

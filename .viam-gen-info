@@ -1,0 +1,12 @@
+{
+  "module_name": "keystrokes",
+  "namespace": "njooma",
+  "language": "go",
+  "resource_type": "component",
+  "resource_subtype": "generic",
+  "model_name": "keypresser",
+  "enable_cloud_build": false,
+  "initialize_git": false,
+  "generator_version": "0.1.0",
+  "generated_on": "2025-02-03T19:08:46.763129Z"
+}
