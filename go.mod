@@ -5,6 +5,7 @@ go 1.23
 replace github.com/viam-labs/screenshot-cam => ../screenshot-cam
 
 require (
+	github.com/micmonay/keybd_event v1.1.2
 	github.com/viam-labs/screenshot-cam v0.0.0-00010101000000-000000000000
 	go.viam.com/rdk v0.60.1
 )

@@ -1,15 +1,28 @@
 package main
 
 import (
-	"context"
 	"keystrokes/models"
 	"os"
+	"time"
 
+	"github.com/micmonay/keybd_event"
 	"github.com/viam-labs/screenshot-cam/subproc"
 	"go.viam.com/rdk/components/generic"
 	"go.viam.com/rdk/module"
 	"go.viam.com/rdk/resource"
 )
+
+func SendKeys() {
+	time.Sleep(time.Second * 2)
+	kb, err := keybd_event.NewKeyBonding()
+	if err != nil {
+		panic(err)
+	}
+	kb.SetKeys(keybd_event.VK_A, keybd_event.VK_B)
+	if err := kb.Launching(); err != nil {
+		panic(err)
+	}
+}
 
 func main() {
 	logger := module.NewLoggerFromArgs("screenshot-cam")
@@ -26,9 +39,10 @@ func main() {
 	case "child":
 		// child is the subprocess started in session 1 by a session 0 parent. it does the work.
 		logger.Info("child mode: doing a keystrokes test instead of starting module")
-		if err := models.DemoMode(context.Background(), logger); err != nil {
-			panic(err)
-		}
+		// if err := models.DemoMode(context.Background(), logger); err != nil {
+		// 	panic(err)
+		// }
+		SendKeys()
 	default:
 		// ModularMain can take multiple APIModel arguments, if your module implements multiple models.
 		module.ModularMain(resource.APIModel{generic.API, models.Keypresser})
