@@ -93,32 +93,46 @@ func (s *keystrokesKeypresser) DoCommand(ctx context.Context, cmd map[string]int
 				// Check if meta key and press/release immediately
 				// Otherwise, go rune by rune
 				if key, ok := keymap[keys]; ok {
-					Press(key)
+					if err := Press(key); err != nil {
+						return nil, err
+					}
 					pressed = append(pressed, key)
 				} else {
 					for _, r := range keys {
 						if key := GetKey(r); key >= 0 {
-							Press(key)
+							if err := Press(key); err != nil {
+								return nil, err
+							}
 							pressed = append(pressed, key)
 						}
 					}
 				}
 			}
 			for i := len(pressed) - 1; i >= 0; i-- {
-				Release(pressed[i])
+				if err := Release(pressed[i]); err != nil {
+					return nil, err
+				}
 			}
 		} else if keystroke.Type == Sequential {
 			for _, keys := range keystroke.Keys {
 				// Check if meta key and press/release immediately
 				// Otherwise, go rune by rune
 				if key, ok := keymap[keys]; ok {
-					Press(key)
-					Release(key)
+					if err := Press(key); err != nil {
+						return nil, err
+					}
+					if err := Release(key); err != nil {
+						return nil, err
+					}
 				} else {
 					for _, r := range keys {
 						if key := GetKey(r); key >= 0 {
-							Press(key)
-							Release(key)
+							if err := Press(key); err != nil {
+								return nil, err
+							}
+							if err := Release(key); err != nil {
+								return nil, err
+							}
 						}
 					}
 				}
@@ -127,4 +141,30 @@ func (s *keystrokesKeypresser) DoCommand(ctx context.Context, cmd map[string]int
 	}
 
 	return nil, nil
+}
+
+func DemoMode(ctx context.Context, logger logging.Logger) error {
+	// cancelCtx, cancelFunc := context.WithCancel(context.Background())
+
+	kp := &keystrokesKeypresser{
+		logger: logger,
+		cfg:    &Config{},
+		// cancelCtx:  cancelCtx,
+		// cancelFunc: cancelFunc,
+	}
+	demo := `{
+		"keystrokes": [
+			{"type": "simultaneous", "keys": ["VK_META"]},
+			{"type": "sequential", "keys": ["notepad", "VK_ENTER"]},
+			{"type": "sequential", "keys": ["Hello", " ", "World"]},
+			{"type": "simultaneous", "keys": ["VK_SHIFT", "1"]}
+		]
+	}`
+	var cmd map[string]any
+	err := json.Unmarshal([]byte(demo), &cmd)
+	if err != nil {
+		return err
+	}
+	_, err = kp.DoCommand(ctx, cmd)
+	return err
 }

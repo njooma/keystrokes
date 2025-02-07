@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"keystrokes/models"
 	"os"
 
@@ -24,7 +25,10 @@ func main() {
 		}
 	case "child":
 		// child is the subprocess started in session 1 by a session 0 parent. it does the work.
-		logger.Info("doing a keystrokes test instead of starting module")
+		logger.Info("child mode: doing a keystrokes test instead of starting module")
+		if err := models.DemoMode(context.Background(), logger); err != nil {
+			panic(err)
+		}
 	default:
 		// ModularMain can take multiple APIModel arguments, if your module implements multiple models.
 		module.ModularMain(resource.APIModel{generic.API, models.Keypresser})
