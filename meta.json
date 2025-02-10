@@ -1,13 +1,13 @@
 {
   "$schema": "https://dl.viam.dev/module.schema.json",
-  "module_id": "njooma:keystrokes",
-  "visibility": "private",
+  "module_id": "awinter:keystrokes",
+  "visibility": "public_unlisted",
   "url": "",
   "description": "Modular generic component: keypresser",
   "models": [
     {
       "api": "rdk:component:generic",
-      "model": "njooma:keystrokes:keypresser"
+      "model": "awinter:keystrokes:keypresser"
     }
   ],
   "entrypoint": "./run.sh",
