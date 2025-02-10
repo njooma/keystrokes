@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/micmonay/keybd_event"
 	"github.com/viam-labs/screenshot-cam/subproc"
 	"go.viam.com/rdk/components/generic"
 	"go.viam.com/rdk/logging"
@@ -94,92 +93,71 @@ func (s *keystrokesKeypresser) DoCommand(ctx context.Context, cmd map[string]int
 		panic(err)
 	}
 
-	// for _, keystroke := range command.Keystrokes {
-	// 	if keystroke.Type == Simultaneous {
-	// 		pressed := []int{}
-	// 		for _, keys := range keystroke.Keys {
-	// 			// Check if meta key and press/release immediately
-	// 			// Otherwise, go rune by rune
-	// 			if key, ok := keymap[keys]; ok {
-	// 				if err := Press(key); err != nil {
-	// 					return nil, err
-	// 				}
-	// 				pressed = append(pressed, key)
-	// 			} else {
-	// 				for _, r := range keys {
-	// 					if key := GetKey(r); key >= 0 {
-	// 						if err := Press(key); err != nil {
-	// 							return nil, err
-	// 						}
-	// 						pressed = append(pressed, key)
-	// 					}
-	// 				}
-	// 			}
-	// 		}
-	// 		for i := len(pressed) - 1; i >= 0; i-- {
-	// 			if err := Release(pressed[i]); err != nil {
-	// 				return nil, err
-	// 			}
-	// 		}
-	// 	} else if keystroke.Type == Sequential {
-	// 		for _, keys := range keystroke.Keys {
-	// 			// Check if meta key and press/release immediately
-	// 			// Otherwise, go rune by rune
-	// 			if key, ok := keymap[keys]; ok {
-	// 				if err := Press(key); err != nil {
-	// 					return nil, err
-	// 				}
-	// 				if err := Release(key); err != nil {
-	// 					return nil, err
-	// 				}
-	// 			} else {
-	// 				for _, r := range keys {
-	// 					if key := GetKey(r); key >= 0 {
-	// 						if err := Press(key); err != nil {
-	// 							return nil, err
-	// 						}
-	// 						if err := Release(key); err != nil {
-	// 							return nil, err
-	// 						}
-	// 					}
-	// 				}
-	// 			}
-	// 		}
-	// 	}
-	// }
-
 	return nil, nil
 }
 
-func DemoMode(ctx context.Context, logger logging.Logger, jsonArg []byte) error {
-	// cancelCtx, cancelFunc := context.WithCancel(context.Background())
+func doKeystrokes(command Command) error {
+	for _, keystroke := range command.Keystrokes {
+		if keystroke.Type == Simultaneous {
+			pressed := []int{}
+			for _, keys := range keystroke.Keys {
+				// Check if meta key and press/release immediately
+				// Otherwise, go rune by rune
+				if key, ok := keymap[keys]; ok {
+					if err := Press(key); err != nil {
+						return err
+					}
+					pressed = append(pressed, key)
+				} else {
+					for _, r := range keys {
+						if key := GetKey(r); key >= 0 {
+							if err := Press(key); err != nil {
+								return err
+							}
+							pressed = append(pressed, key)
+						}
+					}
+				}
+			}
+			for i := len(pressed) - 1; i >= 0; i-- {
+				if err := Release(pressed[i]); err != nil {
+					return err
+				}
+			}
+		} else if keystroke.Type == Sequential {
+			for _, keys := range keystroke.Keys {
+				// Check if meta key and press/release immediately
+				// Otherwise, go rune by rune
+				if key, ok := keymap[keys]; ok {
+					if err := Press(key); err != nil {
+						return err
+					}
+					if err := Release(key); err != nil {
+						return err
+					}
+				} else {
+					for _, r := range keys {
+						if key := GetKey(r); key >= 0 {
+							if err := Press(key); err != nil {
+								return err
+							}
+							if err := Release(key); err != nil {
+								return err
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+	return nil
+}
 
-	// demo := `{
-	// 	"keystrokes": [
-	// 		{"type": "simultaneous", "keys": ["VK_META"]},
-	// 		{"type": "sequential", "keys": ["notepad", "VK_ENTER"]},
-	// 		{"type": "sequential", "keys": ["Hello", " ", "World"]},
-	// 		{"type": "simultaneous", "keys": ["VK_SHIFT", "1"]}
-	// 	]
-	// }`
+func DemoMode(ctx context.Context, logger logging.Logger, jsonArg []byte) error {
 	var command Command
 	err := json.Unmarshal(jsonArg, &command)
 	if err != nil {
 		return err
 	}
-	for _, keystroke := range command.Keystrokes {
-		kb, err := keybd_event.NewKeyBonding()
-		if err != nil {
-			return err
-		}
-		for range keystroke.Keys {
-			println("SETTING KEY A")
-			kb.SetKeys(keybd_event.VK_A)
-		}
-		if err := kb.Launching(); err != nil {
-			return err
-		}
-		println("OK LAUNCH")
-	}
-	return nil
+	return doKeystrokes(command)
 }
