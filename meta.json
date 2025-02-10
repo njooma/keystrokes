@@ -10,6 +10,6 @@
       "model": "awinter:keystrokes:keypresser"
     }
   ],
-  "entrypoint": "./run.sh",
+  "entrypoint": "keystrokes.exe",
   "first_run": ""
 }

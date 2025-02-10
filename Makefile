@@ -8,9 +8,10 @@ build: format update-rdk
 	rm -f $(BIN_OUTPUT_PATH)/keystrokes
 	go build $(LDFLAGS) -o $(BIN_OUTPUT_PATH)/keystrokes main.go
 
-module.tar.gz: build
-	rm -f $(BIN_OUTPUT_PATH)/module.tar.gz
-	tar czf $(BIN_OUTPUT_PATH)/module.tar.gz $(BIN_OUTPUT_PATH)/keystrokes
+module.tar.gz: 
+	GOPRIVATE=github.com/viam-labs/screenshot-cam GOOS=windows GOARCH=amd64 go build -ldflags="-s -w" .
+	rm -f $@
+	tar czf $@ meta.json keystrokes.exe
 
 setup:
 	if [ "$(UNAME_S)" = "Linux" ]; then \
