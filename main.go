@@ -14,7 +14,7 @@ import (
 )
 
 func main() {
-	logger := module.NewLoggerFromArgs("screenshot-cam")
+	logger := module.NewLoggerFromArgs("keystrokes")
 	var mode string
 	var encodedKeystrokes string
 	if len(os.Args) >= 3 {
@@ -33,8 +33,8 @@ func main() {
 		if err != nil {
 			panic(err)
 		}
-		logger.Debug("executing keypresses in a child process")
-		if err := models.ExecuteJSONKeystrokes(context.Background(), jsonArg); err != nil {
+		logger.Info("executing keypresses in a child process")
+		if err := models.ExecuteJSONKeystrokes(context.Background(), logger, jsonArg); err != nil {
 			panic(err)
 		}
 	default:

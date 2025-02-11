@@ -5,11 +5,12 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"os/user"
+	"strings"
 
 	"go.viam.com/rdk/components/generic"
 	"go.viam.com/rdk/logging"
 	"go.viam.com/rdk/resource"
-	"golang.org/x/sys/windows/svc"
 
 	"keystrokes/subproc"
 )
@@ -87,21 +88,16 @@ func (s *keystrokesKeypresser) DoCommand(ctx context.Context, cmd map[string]int
 		return nil, fmt.Errorf("could not convert command into JSON: %w", err)
 	}
 
-	if isService, err := svc.IsWindowsService(); err != nil {
+	if username, err := user.Current(); err != nil {
 		return nil, err
-	} else if isService {
+	} else if strings.Contains(username.Username, `NT AUTHORITY\`) {
+		s.logger.Info("Running in service mode, spawning child process")
 		jsonArg := base64.StdEncoding.EncodeToString(jsonbody)
 		// Spawn a subprocess to run in ChildMode if we are in a Windows service
-		if err := subproc.SpawnSelf(" child " + jsonArg); err != nil {
-			panic(err)
-		}
-	} else {
-		if err := ExecuteJSONKeystrokes(ctx, jsonbody); err != nil {
-			return nil, err
-		}
+		return nil, subproc.SpawnSelf(" child " + jsonArg)
 	}
-
-	return nil, nil
+	s.logger.Info("Running in interactive mode, executing keypresses directly")
+	return nil, ExecuteJSONKeystrokes(ctx, jsonbody)
 }
 
 func doKeystrokes(command Command) error {
@@ -162,11 +158,12 @@ func doKeystrokes(command Command) error {
 }
 
 // Receive a JSON-encoded Command object, which contains a list of Keystroke objects, and execute it.
-func ExecuteJSONKeystrokes(ctx context.Context, jsonArg []byte) error {
+func ExecuteJSONKeystrokes(ctx context.Context, logger logging.Logger, jsonArg []byte) error {
 	var command Command
 	err := json.Unmarshal(jsonArg, &command)
 	if err != nil {
 		return err
 	}
+	logger.Info("ABOUT TO EXECUTE KEYSTROKES: ", command)
 	return doKeystrokes(command)
 }
