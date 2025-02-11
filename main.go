@@ -33,7 +33,7 @@ func main() {
 		if err != nil {
 			panic(err)
 		}
-		logger.Info("executing keypresses in a child process")
+		logger.Debug("executing keypresses in a child process")
 		if err := models.ExecuteJSONKeystrokes(context.Background(), logger, jsonArg); err != nil {
 			panic(err)
 		}
