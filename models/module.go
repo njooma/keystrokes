@@ -10,6 +10,7 @@ import (
 	"go.viam.com/rdk/components/generic"
 	"go.viam.com/rdk/logging"
 	"go.viam.com/rdk/resource"
+	"golang.org/x/sys/windows/svc"
 )
 
 var (
@@ -85,15 +86,20 @@ func (s *keystrokesKeypresser) DoCommand(ctx context.Context, cmd map[string]int
 		return nil, fmt.Errorf("could not convert command into JSON: %w", err)
 	}
 
-	// todo: only do subproc when needed; it won't work in non-service mode
-
-	jsonArg := base64.StdEncoding.EncodeToString(jsonbody)
-	// parent is a test mode for spawning a child proc directly from session 0 CLI. see README.md for instructions.
-	if err := subproc.SpawnSelf(" child " + jsonArg); err != nil {
-		panic(err)
+	if isService, err := svc.IsWindowsService(); err != nil {
+		return nil, err
+	} else if isService {
+		jsonArg := base64.StdEncoding.EncodeToString(jsonbody)
+		// parent is a test mode for spawning a child proc directly from session 0 CLI. see README.md for instructions.
+		return nil, subproc.SpawnSelf(" child " + jsonArg)
+	} else {
+		var command Command
+		err := json.Unmarshal(jsonbody, &command)
+		if err != nil {
+			return nil, err
+		}
+		return nil, doKeystrokes(command)
 	}
-
-	return nil, nil
 }
 
 func doKeystrokes(command Command) error {
