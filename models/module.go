@@ -5,15 +5,18 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"os/user"
+	"strings"
 
-	"github.com/viam-labs/screenshot-cam/subproc"
 	"go.viam.com/rdk/components/generic"
 	"go.viam.com/rdk/logging"
 	"go.viam.com/rdk/resource"
+
+	"keystrokes/subproc"
 )
 
 var (
-	Keypresser = resource.NewModel("awinter", "keystrokes", "keypresser")
+	Keypresser = resource.NewModel("njooma", "keystrokes", "keypresser")
 )
 
 func init() {
@@ -85,15 +88,16 @@ func (s *keystrokesKeypresser) DoCommand(ctx context.Context, cmd map[string]int
 		return nil, fmt.Errorf("could not convert command into JSON: %w", err)
 	}
 
-	// todo: only do subproc when needed; it won't work in non-service mode
-
-	jsonArg := base64.StdEncoding.EncodeToString(jsonbody)
-	// parent is a test mode for spawning a child proc directly from session 0 CLI. see README.md for instructions.
-	if err := subproc.SpawnSelf(" child " + jsonArg); err != nil {
-		panic(err)
+	if username, err := user.Current(); err != nil {
+		return nil, err
+	} else if strings.Contains(username.Username, `NT AUTHORITY\`) {
+		s.logger.Info("Running in service mode, spawning child process")
+		jsonArg := base64.StdEncoding.EncodeToString(jsonbody)
+		// Spawn a subprocess to run in ChildMode if we are in a Windows service
+		return nil, subproc.SpawnSelf(" child " + jsonArg)
 	}
-
-	return nil, nil
+	s.logger.Info("Running in interactive mode, executing keypresses directly")
+	return nil, ExecuteJSONKeystrokes(ctx, s.logger, jsonbody)
 }
 
 func doKeystrokes(command Command) error {
@@ -153,11 +157,13 @@ func doKeystrokes(command Command) error {
 	return nil
 }
 
-func DemoMode(ctx context.Context, logger logging.Logger, jsonArg []byte) error {
+// Receive a JSON-encoded Command object, which contains a list of Keystroke objects, and execute it.
+func ExecuteJSONKeystrokes(ctx context.Context, logger logging.Logger, jsonArg []byte) error {
 	var command Command
 	err := json.Unmarshal(jsonArg, &command)
 	if err != nil {
 		return err
 	}
+	logger.Info("ABOUT TO EXECUTE KEYSTROKES: ", command)
 	return doKeystrokes(command)
 }
