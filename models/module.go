@@ -6,10 +6,12 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/viam-labs/screenshot-cam/subproc"
 	"go.viam.com/rdk/components/generic"
 	"go.viam.com/rdk/logging"
 	"go.viam.com/rdk/resource"
+	"golang.org/x/sys/windows/svc"
+
+	"keystrokes/subproc"
 )
 
 var (
@@ -85,12 +87,18 @@ func (s *keystrokesKeypresser) DoCommand(ctx context.Context, cmd map[string]int
 		return nil, fmt.Errorf("could not convert command into JSON: %w", err)
 	}
 
-	// todo: only do subproc when needed; it won't work in non-service mode
-
-	jsonArg := base64.StdEncoding.EncodeToString(jsonbody)
-	// parent is a test mode for spawning a child proc directly from session 0 CLI. see README.md for instructions.
-	if err := subproc.SpawnSelf(" child " + jsonArg); err != nil {
-		panic(err)
+	if isService, err := svc.IsWindowsService(); err != nil {
+		return nil, err
+	} else if isService {
+		jsonArg := base64.StdEncoding.EncodeToString(jsonbody)
+		// Spawn a subprocess to run in ChildMode if we are in a Windows service
+		if err := subproc.SpawnSelf(" child " + jsonArg); err != nil {
+			panic(err)
+		}
+	} else {
+		if err := ExecuteJSONKeystrokes(ctx, jsonbody); err != nil {
+			return nil, err
+		}
 	}
 
 	return nil, nil
@@ -153,7 +161,8 @@ func doKeystrokes(command Command) error {
 	return nil
 }
 
-func DemoMode(ctx context.Context, logger logging.Logger, jsonArg []byte) error {
+// Receive a JSON-encoded Command object, which contains a list of Keystroke objects, and execute it.
+func ExecuteJSONKeystrokes(ctx context.Context, jsonArg []byte) error {
 	var command Command
 	err := json.Unmarshal(jsonArg, &command)
 	if err != nil {
