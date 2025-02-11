@@ -16,7 +16,7 @@ import (
 )
 
 var (
-	Keypresser = resource.NewModel("awinter", "keystrokes", "keypresser")
+	Keypresser = resource.NewModel("njooma", "keystrokes", "keypresser")
 )
 
 func init() {
