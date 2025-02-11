@@ -97,7 +97,7 @@ func (s *keystrokesKeypresser) DoCommand(ctx context.Context, cmd map[string]int
 		return nil, subproc.SpawnSelf(" child " + jsonArg)
 	}
 	s.logger.Info("Running in interactive mode, executing keypresses directly")
-	return nil, ExecuteJSONKeystrokes(ctx, jsonbody)
+	return nil, ExecuteJSONKeystrokes(ctx, s.logger, jsonbody)
 }
 
 func doKeystrokes(command Command) error {
