@@ -20,6 +20,7 @@ type keyboardInput struct {
 type input struct {
 	inputType uint32
 	ki        keyboardInput
+	mi        mouseInput
 	padding   uint64
 }
 

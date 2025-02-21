@@ -78,8 +78,23 @@ type Keystroke struct {
 	Type KeypressType `json:"type"`
 	Keys []string     `json:"keys"`
 }
+
+type MouseEventType string
+
+const (
+	EventLeftClick   MouseEventType = "left_click"
+	EventRightClick  MouseEventType = "right_click"
+	EventDoubleClick MouseEventType = "double_click"
+)
+
+type MouseEvent struct {
+	Type MouseEventType `json:"type"`
+	X    float64        `json:"x"`
+	Y    float64        `json:"y"`
+}
+
 type Command struct {
-	Keystrokes []Keystroke `json:"keystrokes"`
+	Inputs []interface{} `json:"inputs"`
 }
 
 func (s *keystrokesKeypresser) DoCommand(ctx context.Context, cmd map[string]interface{}) (map[string]interface{}, error) {
@@ -97,57 +112,71 @@ func (s *keystrokesKeypresser) DoCommand(ctx context.Context, cmd map[string]int
 		return nil, subproc.SpawnSelf(" child " + jsonArg)
 	}
 	s.logger.Debug("Running in interactive mode, executing keypresses directly")
-	return nil, ExecuteJSONKeystrokes(ctx, s.logger, jsonbody)
+	return nil, ExecuteJSONEvents(ctx, s.logger, jsonbody)
 }
 
-func doKeystrokes(command Command) error {
-	for _, keystroke := range command.Keystrokes {
-		if keystroke.Type == Simultaneous {
-			pressed := []int{}
-			for _, keys := range keystroke.Keys {
-				// Check if meta key and press/release immediately
-				// Otherwise, go rune by rune
-				if key, ok := keymap[keys]; ok {
-					if err := Press(key); err != nil {
-						return err
-					}
-					pressed = append(pressed, key)
-				} else {
-					for _, r := range keys {
-						if key := GetKey(r); key >= 0 {
-							if err := Press(key); err != nil {
-								return err
-							}
-							pressed = append(pressed, key)
-						}
-					}
-				}
+func handleEvents(command Command) error {
+	for _, input := range command.Inputs {
+		switch input := input.(type) {
+		case Keystroke:
+			if err := doKeystroke(input); err != nil {
+				return err
 			}
-			for i := len(pressed) - 1; i >= 0; i-- {
-				if err := Release(pressed[i]); err != nil {
+		case MouseEvent:
+			if err := doMouseEvent(input); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func doKeystroke(keystroke Keystroke) error {
+	if keystroke.Type == Simultaneous {
+		pressed := []int{}
+		for _, keys := range keystroke.Keys {
+			// Check if meta key and press/release immediately
+			// Otherwise, go rune by rune
+			if key, ok := keymap[keys]; ok {
+				if err := Press(key); err != nil {
 					return err
 				}
+				pressed = append(pressed, key)
+			} else {
+				for _, r := range keys {
+					if key := GetKey(r); key >= 0 {
+						if err := Press(key); err != nil {
+							return err
+						}
+						pressed = append(pressed, key)
+					}
+				}
 			}
-		} else if keystroke.Type == Sequential {
-			for _, keys := range keystroke.Keys {
-				// Check if meta key and press/release immediately
-				// Otherwise, go rune by rune
-				if key, ok := keymap[keys]; ok {
-					if err := Press(key); err != nil {
-						return err
-					}
-					if err := Release(key); err != nil {
-						return err
-					}
-				} else {
-					for _, r := range keys {
-						if key := GetKey(r); key >= 0 {
-							if err := Press(key); err != nil {
-								return err
-							}
-							if err := Release(key); err != nil {
-								return err
-							}
+		}
+		for i := len(pressed) - 1; i >= 0; i-- {
+			if err := Release(pressed[i]); err != nil {
+				return err
+			}
+		}
+	} else if keystroke.Type == Sequential {
+		for _, keys := range keystroke.Keys {
+			// Check if meta key and press/release immediately
+			// Otherwise, go rune by rune
+			if key, ok := keymap[keys]; ok {
+				if err := Press(key); err != nil {
+					return err
+				}
+				if err := Release(key); err != nil {
+					return err
+				}
+			} else {
+				for _, r := range keys {
+					if key := GetKey(r); key >= 0 {
+						if err := Press(key); err != nil {
+							return err
+						}
+						if err := Release(key); err != nil {
+							return err
 						}
 					}
 				}
@@ -157,12 +186,24 @@ func doKeystrokes(command Command) error {
 	return nil
 }
 
+func doMouseEvent(mouseEvent MouseEvent) error {
+	switch mouseEvent.Type {
+	case EventLeftClick:
+		return LeftClick(mouseEvent.X, mouseEvent.Y)
+	case EventRightClick:
+		return RightClick(mouseEvent.X, mouseEvent.Y)
+	case EventDoubleClick:
+		return DoubleClick(mouseEvent.X, mouseEvent.Y)
+	}
+	return nil
+}
+
 // Receive a JSON-encoded Command object, which contains a list of Keystroke objects, and execute it.
-func ExecuteJSONKeystrokes(ctx context.Context, logger logging.Logger, jsonArg []byte) error {
+func ExecuteJSONEvents(ctx context.Context, logger logging.Logger, jsonArg []byte) error {
 	var command Command
 	err := json.Unmarshal(jsonArg, &command)
 	if err != nil {
 		return err
 	}
-	return doKeystrokes(command)
+	return handleEvents(command)
 }
