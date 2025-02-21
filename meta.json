@@ -2,7 +2,7 @@
   "$schema": "https://dl.viam.dev/module.schema.json",
   "module_id": "njooma:keystrokes",
   "visibility": "public_unlisted",
-  "url": "",
+  "url": "https://github.com/njooma/keystrokes",
   "description": "Modular generic component: keypresser",
   "models": [
     {
