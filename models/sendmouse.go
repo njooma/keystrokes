@@ -7,6 +7,7 @@ import (
 
 const flag_MouseInput = 0
 const flag_AbsolutePosition = 0x8000
+const flag_Move = 0x0001
 const flag_LeftDown = 0x0002
 const flag_LeftUp = 0x0004
 const flag_RightDown = 0x0008
@@ -40,7 +41,16 @@ func normalizeCoordinates(x, y float64) (dx, dy int32) {
 func LeftClick(x, y float64) error {
 	dx, dy := normalizeCoordinates(x, y)
 
-	i := minput{inputType: flag_MouseInput, mi: mouseInput{dwFlags: flag_LeftDown | flag_AbsolutePosition, dx: dx, dy: dy}}
+	i := minput{inputType: flag_MouseInput, mi: mouseInput{dwFlags: flag_Move | flag_AbsolutePosition, dx: dx, dy: dy}}
+	if ret, _, err := sendInputProc.Call(
+		uintptr(1),
+		uintptr(unsafe.Pointer(&i)),
+		uintptr(unsafe.Sizeof(i)),
+	); ret == 0 {
+		return err
+	}
+
+	i = minput{inputType: flag_MouseInput, mi: mouseInput{dwFlags: flag_LeftDown | flag_AbsolutePosition, dx: dx, dy: dy}}
 	if ret, _, err := sendInputProc.Call(
 		uintptr(1),
 		uintptr(unsafe.Pointer(&i)),
@@ -76,7 +86,16 @@ func DoubleClick(x, y float64) error {
 func RightClick(x, y float64) error {
 	dx, dy := normalizeCoordinates(x, y)
 
-	i := minput{inputType: flag_MouseInput, mi: mouseInput{dwFlags: flag_RightDown | flag_AbsolutePosition, dx: dx, dy: dy}}
+	i := minput{inputType: flag_MouseInput, mi: mouseInput{dwFlags: flag_Move | flag_AbsolutePosition, dx: dx, dy: dy}}
+	if ret, _, err := sendInputProc.Call(
+		uintptr(1),
+		uintptr(unsafe.Pointer(&i)),
+		uintptr(unsafe.Sizeof(i)),
+	); ret == 0 {
+		return err
+	}
+
+	i = minput{inputType: flag_MouseInput, mi: mouseInput{dwFlags: flag_RightDown | flag_AbsolutePosition, dx: dx, dy: dy}}
 	if ret, _, err := sendInputProc.Call(
 		uintptr(1),
 		uintptr(unsafe.Pointer(&i)),
