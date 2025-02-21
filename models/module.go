@@ -97,6 +97,41 @@ type Command struct {
 	Inputs []interface{} `json:"inputs"`
 }
 
+func (c *Command) UnmarshalJSON(data []byte) error {
+	var items struct {
+		Inputs []json.RawMessage `json:"inputs"`
+	}
+	if err := json.Unmarshal(data, &items); err != nil {
+		return fmt.Errorf("unable to parse command: %w", err)
+	}
+
+	for _, msg := range items.Inputs {
+		var meta struct {
+			Type string `json:"type"`
+		}
+		if err := json.Unmarshal(msg, &meta); err != nil {
+			return fmt.Errorf("unable to parse command: %w", err)
+		}
+		switch meta.Type {
+		case string(Sequential), string(Simultaneous):
+			var keystroke Keystroke
+			if err := json.Unmarshal(msg, &keystroke); err != nil {
+				return fmt.Errorf("unable to parse command: %w", err)
+			}
+			c.Inputs = append(c.Inputs, keystroke)
+		case string(EventLeftClick), string(EventRightClick), string(EventDoubleClick):
+			var mouseEvent MouseEvent
+			if err := json.Unmarshal(msg, &mouseEvent); err != nil {
+				return fmt.Errorf("unable to parse command: %w", err)
+			}
+			c.Inputs = append(c.Inputs, mouseEvent)
+		default:
+			return fmt.Errorf("unable to parse command, invalid type: %s", meta.Type)
+		}
+	}
+	return nil
+}
+
 func (s *keystrokesKeypresser) DoCommand(ctx context.Context, cmd map[string]interface{}) (map[string]interface{}, error) {
 	jsonbody, err := json.Marshal(cmd)
 	if err != nil {
@@ -117,13 +152,13 @@ func (s *keystrokesKeypresser) DoCommand(ctx context.Context, cmd map[string]int
 
 func handleEvents(command Command) error {
 	for _, input := range command.Inputs {
-		switch input := input.(type) {
-		case Keystroke:
-			if err := doKeystroke(input); err != nil {
+		if event, ok := input.(Keystroke); ok {
+			if err := doKeystroke(event); err != nil {
 				return err
 			}
-		case MouseEvent:
-			if err := doMouseEvent(input); err != nil {
+		}
+		if event, ok := input.(MouseEvent); ok {
+			if err := doMouseEvent(event); err != nil {
 				return err
 			}
 		}
@@ -201,7 +236,7 @@ func doMouseEvent(mouseEvent MouseEvent) error {
 // Receive a JSON-encoded Command object, which contains a list of Keystroke objects, and execute it.
 func ExecuteJSONEvents(ctx context.Context, logger logging.Logger, jsonArg []byte) error {
 	var command Command
-	err := json.Unmarshal(jsonArg, &command)
+	err := command.UnmarshalJSON(jsonArg)
 	if err != nil {
 		return err
 	}
