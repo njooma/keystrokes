@@ -1,6 +1,7 @@
 package subproc
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -14,6 +15,10 @@ var (
 	wts32            = windows.NewLazySystemDLL("wtsapi32.dll")
 	getActiveConsole = kernel32.NewProc("WTSGetActiveConsoleSessionId")
 	queryToken       = wts32.NewProc("WTSQueryUserToken")
+)
+
+const (
+	Flag_InChild = "child"
 )
 
 func activeUserToken() (windows.Token, error) {
@@ -30,6 +35,11 @@ func activeUserToken() (windows.Token, error) {
 		return 0, fmt.Errorf("WTSQueryUserToken error %s", err)
 	}
 	return windows.Token(hToken), nil
+}
+
+// returns true if this is running as LocalSystem and SpawnSelf is necessary for desktop interaction.
+func ShouldSpawn(ctx context.Context) bool {
+	return ctx.Value(Flag_InChild) == nil
 }
 
 // runs the currently running binary as a subprocess in the context of the active console session ID.

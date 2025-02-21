@@ -5,8 +5,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"os/user"
-	"strings"
 
 	"go.viam.com/rdk/components/generic"
 	"go.viam.com/rdk/logging"
@@ -138,9 +136,7 @@ func (s *keystrokesKeypresser) DoCommand(ctx context.Context, cmd map[string]int
 		return nil, fmt.Errorf("could not convert command into JSON: %w", err)
 	}
 
-	if username, err := user.Current(); err != nil {
-		return nil, err
-	} else if strings.Contains(username.Username, `NT AUTHORITY\`) {
+	if subproc.ShouldSpawn(ctx) {
 		s.logger.Debug("Running in service mode, spawning child process")
 		jsonArg := base64.StdEncoding.EncodeToString(jsonbody)
 		// Spawn a subprocess to run in ChildMode if we are in a Windows service
