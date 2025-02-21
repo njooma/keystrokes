@@ -17,7 +17,7 @@ type keyboardInput struct {
 	dwExtraInfo uint64
 }
 
-type input struct {
+type kinput struct {
 	inputType uint32
 	ki        keyboardInput
 	padding   uint64
@@ -34,7 +34,7 @@ func keyWithShift(key int) (int, bool) {
 }
 
 func keyDown(key int) error {
-	input := input{inputType: flag_KeyboardInput, ki: keyboardInput{wVk: uint16(key)}}
+	input := kinput{inputType: flag_KeyboardInput, ki: keyboardInput{wVk: uint16(key)}}
 	if ret, _, err := sendInputProc.Call(
 		uintptr(1),
 		uintptr(unsafe.Pointer(&input)),
@@ -46,7 +46,7 @@ func keyDown(key int) error {
 }
 
 func keyUp(key int) error {
-	input := input{inputType: flag_KeyboardInput, ki: keyboardInput{wVk: uint16(key), dwFlags: flag_KeyUp}}
+	input := kinput{inputType: flag_KeyboardInput, ki: keyboardInput{wVk: uint16(key), dwFlags: flag_KeyUp}}
 	if ret, _, err := sendInputProc.Call(
 		uintptr(1),
 		uintptr(unsafe.Pointer(&input)),
