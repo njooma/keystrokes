@@ -1,16 +1,16 @@
 package models
 
-type EventType string
+type CommandType string
 
 const (
-	Type_Keystroke  EventType = "keystroke"
-	Type_MouseEvent EventType = "mouse_event"
-	Type_Sleep      EventType = "sleep"
-	Type_Macro      EventType = "macro"
+	Type_Keystroke  CommandType = "keystroke"
+	Type_MouseEvent CommandType = "mouse_event"
+	Type_Sleep      CommandType = "sleep"
+	Type_Macro      CommandType = "macro"
 )
 
-type Event struct {
-	Type EventType `json:"type"`
+type Command struct {
+	Type CommandType `json:"command"`
 	Keystroke
 	MouseEvent
 	Sleep
@@ -48,6 +48,5 @@ type Sleep struct {
 }
 
 type Macro struct {
-	Name   string  `json:"name"`
-	Events []Event `json:"events"`
+	Name string `json:"name"`
 }
