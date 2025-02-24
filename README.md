@@ -9,7 +9,69 @@ You can send sequential keystrokes, or press keys simultaneously. Each keystroke
 You can send left, right, or double left clicks.
 
 ## Atributes
-n/a
+The following attributes are available for this model:
+
+| Name              | Type     | Inclusion | Description                    |
+|-------------------|----------|-----------|--------------------------------|
+| `macros`          | object   | Optional  | Pre-configured macros          |
+
+#### Example Configuration
+```json
+{
+  "macros": {
+	"hello_world": [
+      {
+		"command": "mouse_event",
+        "type": "left_click",
+        "y": 0.999,
+        "x": 0.001
+      },
+      {
+        "command": "sleep",
+        "ms": 1000
+      },
+      {
+        "command": "keystroke",
+        "mode": "sequential"
+        "keys": [
+          "notepad",
+          "VK_ENTER"
+        ],
+      },
+      {
+        "command": "keystroke",
+        "mode": "sequential",
+        "keys": [
+          "Hello",
+          " ",
+          "World"
+        ]
+      },
+      {
+        "command": "keystroke",
+        "mode": "simultaneous",
+        "keys": [
+          "VK_SHIFT",
+          "1"
+        ]
+      }
+    ]
+  }
+}
+```
+
+### Macros
+
+This optional attribute allows you to pre-define inputs. After you have defined the inputs, you can call them from the `doCommand`.
+From the example configuration above, you could run the `hello_world` macro by calling `doCommand` with the following input:
+
+```json
+{
+	"inputs": [
+		{"command": "macro", "name": "hello_world"}
+	]
+}
+```
 
 ## Usage
 Send a `doCommand` to the component. The structure of the command must be as follows:
@@ -17,8 +79,10 @@ Send a `doCommand` to the component. The structure of the command must be as fol
 ```json
 {
     "inputs": [
-        {"type": "<sequential|simultaneous>", "keys": ["<keys>", "<to>", "<press>"]}
-		{"type": "<left_click|right_click|double_click>", "x": <x_coord>, "y": <y_coord>}
+        {"command": "keystroke", "mode": "<sequential|simultaneous>", "keys": ["<keys>", "<to>", "<press>"]},
+		{"command": "mouse_event", "type": "<left_click|right_click|double_click>", "x": <x_coord>, "y": <y_coord>},
+		{"command": "sleep", "ms": <MS_TO_SLEEP>},
+		{"command": "macro", "name" "<macro_name>"}
     ]
 }
 ```
@@ -44,10 +108,10 @@ A `doCommand` with the following command would click the Start button (bottom le
 ```json
 {
 	"inputs": [
-		{"type": "left_click", "x": 0.001, "y": 0.999},
-		{"type": "sequential", "keys": ["notepad", "VK_ENTER"]},
-		{"type": "sequential", "keys": ["Hello", " ", "World"]},
-		{"type": "simultaneous", "keys": ["VK_SHIFT", "1"]}
+		{"command": "mouse_event", "type": "left_click", "x": 0.001, "y": 0.999},
+		{"command": "keystroke", "mode": "sequential", "keys": ["notepad", "VK_ENTER"]},
+		{"command": "keystroke", "mode": "sequential", "keys": ["Hello", " ", "World"]},
+		{"command": "keystroke", "mode": "simultaneous", "keys": ["VK_SHIFT", "1"]}
 	]
 }
 ```
