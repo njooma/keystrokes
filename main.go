@@ -39,7 +39,7 @@ func main() {
 		}
 		jsonCfg, err := base64.StdEncoding.DecodeString(encodedConfig)
 		if err != nil {
-			panic(err)
+			jsonCfg = []byte{}
 		}
 
 		logger.Debug("executing keypresses in a child process")

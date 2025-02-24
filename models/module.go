@@ -10,6 +10,7 @@ import (
 	"go.viam.com/rdk/components/generic"
 	"go.viam.com/rdk/logging"
 	"go.viam.com/rdk/resource"
+	"go.viam.com/rdk/utils"
 
 	"keystrokes/subproc"
 )
@@ -26,8 +27,10 @@ func init() {
 	)
 }
 
+type Macros map[string][]Command
+
 type Config struct {
-	Macros map[string][]Command `json:"macros"`
+	Macros Macros `json:"macros"`
 	resource.TriviallyValidateConfig
 }
 
@@ -36,18 +39,38 @@ type keystrokesKeypresser struct {
 
 	logger logging.Logger
 	cfg    *Config
+	macros Macros
 
 	cancelCtx  context.Context
 	cancelFunc func()
 
-	resource.TriviallyReconfigurable
 	resource.TriviallyCloseable
+}
+
+func getMacrosFromAttrs(attrs utils.AttributeMap) (Macros, error) {
+	if rawMacros, ok := attrs["macros"]; ok {
+		jsonMacros, err := json.Marshal(rawMacros)
+		if err != nil {
+			return nil, err
+		}
+
+		var macros Macros
+		if err := json.Unmarshal(jsonMacros, &macros); err != nil {
+			return nil, err
+		}
+		return macros, nil
+	}
+	return nil, fmt.Errorf("could not find macros in attributes")
 }
 
 func newKeystrokesKeypresser(ctx context.Context, deps resource.Dependencies, rawConf resource.Config, logger logging.Logger) (resource.Resource, error) {
 	conf, err := resource.NativeConfig[*Config](rawConf)
 	if err != nil {
 		return nil, err
+	}
+	macros, err := getMacrosFromAttrs(rawConf.Attributes)
+	if err != nil {
+		macros = Macros{}
 	}
 
 	cancelCtx, cancelFunc := context.WithCancel(context.Background())
@@ -56,6 +79,7 @@ func newKeystrokesKeypresser(ctx context.Context, deps resource.Dependencies, ra
 		name:       rawConf.ResourceName(),
 		logger:     logger,
 		cfg:        conf,
+		macros:     macros,
 		cancelCtx:  cancelCtx,
 		cancelFunc: cancelFunc,
 	}
@@ -64,6 +88,15 @@ func newKeystrokesKeypresser(ctx context.Context, deps resource.Dependencies, ra
 
 func (s *keystrokesKeypresser) Name() resource.Name {
 	return s.name
+}
+
+func (s *keystrokesKeypresser) Reconfigure(ctx context.Context, deps resource.Dependencies, conf resource.Config) error {
+	if macros, err := getMacrosFromAttrs(conf.Attributes); err != nil {
+		return err
+	} else {
+		s.macros = macros
+	}
+	return nil
 }
 
 type doCommand struct {
@@ -76,7 +109,7 @@ func (s *keystrokesKeypresser) DoCommand(ctx context.Context, cmd map[string]int
 		return nil, fmt.Errorf("could not convert command into JSON: %w", err)
 	}
 
-	jsonCfg, err := json.Marshal(s.cfg)
+	jsonMacros, err := json.Marshal(s.macros)
 	if err != nil {
 		return nil, fmt.Errorf("could not convert config into JSON: %w", err)
 	}
@@ -84,15 +117,15 @@ func (s *keystrokesKeypresser) DoCommand(ctx context.Context, cmd map[string]int
 	if subproc.ShouldSpawn(ctx) {
 		s.logger.Debug("Running in service mode, spawning child process")
 		jsonCmdB64 := base64.StdEncoding.EncodeToString(jsonCmd)
-		jsonCfgB64 := base64.StdEncoding.EncodeToString(jsonCfg)
+		jsonMacrosB64 := base64.StdEncoding.EncodeToString(jsonMacros)
 		// Spawn a subprocess to run in ChildMode if we are in a Windows service
-		return nil, subproc.SpawnSelf(" child " + jsonCmdB64 + " " + jsonCfgB64)
+		return nil, subproc.SpawnSelf(" child " + jsonCmdB64 + " " + jsonMacrosB64)
 	}
 	s.logger.Debug("Running in interactive mode, executing keypresses directly")
-	return nil, ExecuteJSONEvents(ctx, s.logger, jsonCmd, jsonCfg)
+	return nil, ExecuteJSONEvents(ctx, s.logger, jsonCmd, jsonMacros)
 }
 
-func handleEvents(commands []Command, cfg Config) error {
+func handleEvents(commands []Command, macros Macros) error {
 	for _, event := range commands {
 		switch event.Type {
 		case Type_Keystroke:
@@ -106,8 +139,8 @@ func handleEvents(commands []Command, cfg Config) error {
 		case Type_Sleep:
 			doSleep(event.Sleep)
 		case Type_Macro:
-			if macro, ok := cfg.Macros[event.Macro.Name]; ok {
-				if err := handleEvents(macro, cfg); err != nil {
+			if macro, ok := macros[event.Macro.Name]; ok {
+				if err := handleEvents(macro, macros); err != nil {
 					return err
 				}
 			} else {
@@ -194,12 +227,13 @@ func doSleep(sleep Sleep) {
 // Receive a JSON-encoded Command object, which contains a list of Keystroke objects, and execute it.
 func ExecuteJSONEvents(ctx context.Context, logger logging.Logger, jsonCmd []byte, jsonCfg []byte) error {
 	var command doCommand
-	err := json.Unmarshal(jsonCmd, &command)
-	if err != nil {
+	if err := json.Unmarshal(jsonCmd, &command); err != nil {
 		return err
 	}
 
-	var cfg Config
-	json.Unmarshal(jsonCfg, &cfg)
-	return handleEvents(command.Commands, cfg)
+	var macros Macros
+	if err := json.Unmarshal(jsonCfg, &macros); err != nil {
+		return err
+	}
+	return handleEvents(command.Commands, macros)
 }

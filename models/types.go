@@ -38,7 +38,7 @@ const (
 )
 
 type MouseEvent struct {
-	Event MouseEventType `json:"event"`
+	Event MouseEventType `json:"type"`
 	X     float64        `json:"x"`
 	Y     float64        `json:"y"`
 }
