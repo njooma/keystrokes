@@ -5,10 +5,12 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"go.viam.com/rdk/components/generic"
 	"go.viam.com/rdk/logging"
 	"go.viam.com/rdk/resource"
+	"go.viam.com/rdk/utils"
 
 	"keystrokes/subproc"
 )
@@ -25,8 +27,10 @@ func init() {
 	)
 }
 
+type Macros map[string][]Command
+
 type Config struct {
-	DelayMS uint8 `json:"delay_ms"`
+	Macros Macros `json:"macros"`
 	resource.TriviallyValidateConfig
 }
 
@@ -35,18 +39,38 @@ type keystrokesKeypresser struct {
 
 	logger logging.Logger
 	cfg    *Config
+	macros Macros
 
 	cancelCtx  context.Context
 	cancelFunc func()
 
-	resource.TriviallyReconfigurable
 	resource.TriviallyCloseable
+}
+
+func getMacrosFromAttrs(attrs utils.AttributeMap) (Macros, error) {
+	if rawMacros, ok := attrs["macros"]; ok {
+		jsonMacros, err := json.Marshal(rawMacros)
+		if err != nil {
+			return nil, err
+		}
+
+		var macros Macros
+		if err := json.Unmarshal(jsonMacros, &macros); err != nil {
+			return nil, err
+		}
+		return macros, nil
+	}
+	return nil, fmt.Errorf("could not find macros in attributes")
 }
 
 func newKeystrokesKeypresser(ctx context.Context, deps resource.Dependencies, rawConf resource.Config, logger logging.Logger) (resource.Resource, error) {
 	conf, err := resource.NativeConfig[*Config](rawConf)
 	if err != nil {
 		return nil, err
+	}
+	macros, err := getMacrosFromAttrs(rawConf.Attributes)
+	if err != nil {
+		macros = Macros{}
 	}
 
 	cancelCtx, cancelFunc := context.WithCancel(context.Background())
@@ -55,6 +79,7 @@ func newKeystrokesKeypresser(ctx context.Context, deps resource.Dependencies, ra
 		name:       rawConf.ResourceName(),
 		logger:     logger,
 		cfg:        conf,
+		macros:     macros,
 		cancelCtx:  cancelCtx,
 		cancelFunc: cancelFunc,
 	}
@@ -65,105 +90,71 @@ func (s *keystrokesKeypresser) Name() resource.Name {
 	return s.name
 }
 
-type KeypressType string
-
-const (
-	Sequential   KeypressType = "sequential"
-	Simultaneous KeypressType = "simultaneous"
-)
-
-type Keystroke struct {
-	Type KeypressType `json:"type"`
-	Keys []string     `json:"keys"`
-}
-
-type MouseEventType string
-
-const (
-	EventLeftClick   MouseEventType = "left_click"
-	EventRightClick  MouseEventType = "right_click"
-	EventDoubleClick MouseEventType = "double_click"
-)
-
-type MouseEvent struct {
-	Type MouseEventType `json:"type"`
-	X    float64        `json:"x"`
-	Y    float64        `json:"y"`
-}
-
-type Command struct {
-	Inputs []interface{} `json:"inputs"`
-}
-
-func (c *Command) UnmarshalJSON(data []byte) error {
-	var items struct {
-		Inputs []json.RawMessage `json:"inputs"`
-	}
-	if err := json.Unmarshal(data, &items); err != nil {
-		return fmt.Errorf("unable to parse command: %w", err)
-	}
-
-	for _, msg := range items.Inputs {
-		var meta struct {
-			Type string `json:"type"`
-		}
-		if err := json.Unmarshal(msg, &meta); err != nil {
-			return fmt.Errorf("unable to parse command: %w", err)
-		}
-		switch meta.Type {
-		case string(Sequential), string(Simultaneous):
-			var keystroke Keystroke
-			if err := json.Unmarshal(msg, &keystroke); err != nil {
-				return fmt.Errorf("unable to parse command: %w", err)
-			}
-			c.Inputs = append(c.Inputs, keystroke)
-		case string(EventLeftClick), string(EventRightClick), string(EventDoubleClick):
-			var mouseEvent MouseEvent
-			if err := json.Unmarshal(msg, &mouseEvent); err != nil {
-				return fmt.Errorf("unable to parse command: %w", err)
-			}
-			c.Inputs = append(c.Inputs, mouseEvent)
-		default:
-			return fmt.Errorf("unable to parse command, invalid type: %s", meta.Type)
-		}
+func (s *keystrokesKeypresser) Reconfigure(ctx context.Context, deps resource.Dependencies, conf resource.Config) error {
+	if macros, err := getMacrosFromAttrs(conf.Attributes); err != nil {
+		return err
+	} else {
+		s.macros = macros
 	}
 	return nil
 }
 
+type doCommand struct {
+	Commands []Command `json:"inputs"`
+}
+
 func (s *keystrokesKeypresser) DoCommand(ctx context.Context, cmd map[string]interface{}) (map[string]interface{}, error) {
-	jsonbody, err := json.Marshal(cmd)
+	jsonCmd, err := json.Marshal(cmd)
 	if err != nil {
 		return nil, fmt.Errorf("could not convert command into JSON: %w", err)
 	}
 
+	jsonMacros, err := json.Marshal(s.macros)
+	if err != nil {
+		return nil, fmt.Errorf("could not convert config into JSON: %w", err)
+	}
+
 	if subproc.ShouldSpawn(ctx) {
 		s.logger.Debug("Running in service mode, spawning child process")
-		jsonArg := base64.StdEncoding.EncodeToString(jsonbody)
+		jsonCmdB64 := base64.StdEncoding.EncodeToString(jsonCmd)
+		jsonMacrosB64 := base64.StdEncoding.EncodeToString(jsonMacros)
 		// Spawn a subprocess to run in ChildMode if we are in a Windows service
-		return nil, subproc.SpawnSelf(" child " + jsonArg)
+		return nil, subproc.SpawnSelf(" child " + jsonCmdB64 + " " + jsonMacrosB64)
 	}
 	s.logger.Debug("Running in interactive mode, executing keypresses directly")
-	return nil, ExecuteJSONEvents(ctx, s.logger, jsonbody)
+	return nil, ExecuteJSONEvents(ctx, s.logger, jsonCmd, jsonMacros)
 }
 
-func handleEvents(command Command) error {
-	for _, input := range command.Inputs {
-		if event, ok := input.(Keystroke); ok {
-			if err := doKeystroke(event); err != nil {
+func handleEvents(commands []Command, macros Macros) error {
+	for _, event := range commands {
+		switch event.Type {
+		case Type_Keystroke:
+			if err := doKeystroke(event.Keystroke); err != nil {
 				return err
 			}
-		}
-		if event, ok := input.(MouseEvent); ok {
-			if err := doMouseEvent(event); err != nil {
+		case Type_MouseEvent:
+			if err := doMouseEvent(event.MouseEvent); err != nil {
 				return err
 			}
+		case Type_Sleep:
+			doSleep(event.Sleep)
+		case Type_Macro:
+			if macro, ok := macros[event.Macro.Name]; ok {
+				if err := handleEvents(macro, macros); err != nil {
+					return err
+				}
+			} else {
+				return fmt.Errorf("unknown macro: %s", event.Macro.Name)
+			}
+		default:
+			return fmt.Errorf("unknown event type: %s", event.Type)
 		}
 	}
 	return nil
 }
 
 func doKeystroke(keystroke Keystroke) error {
-	if keystroke.Type == Simultaneous {
+	if keystroke.Mode == Simultaneous {
 		pressed := []int{}
 		for _, keys := range keystroke.Keys {
 			// Check if meta key and press/release immediately
@@ -189,7 +180,7 @@ func doKeystroke(keystroke Keystroke) error {
 				return err
 			}
 		}
-	} else if keystroke.Type == Sequential {
+	} else if keystroke.Mode == Sequential {
 		for _, keys := range keystroke.Keys {
 			// Check if meta key and press/release immediately
 			// Otherwise, go rune by rune
@@ -218,7 +209,7 @@ func doKeystroke(keystroke Keystroke) error {
 }
 
 func doMouseEvent(mouseEvent MouseEvent) error {
-	switch mouseEvent.Type {
+	switch mouseEvent.Event {
 	case EventLeftClick:
 		return LeftClick(mouseEvent.X, mouseEvent.Y)
 	case EventRightClick:
@@ -229,12 +220,20 @@ func doMouseEvent(mouseEvent MouseEvent) error {
 	return nil
 }
 
+func doSleep(sleep Sleep) {
+	time.Sleep(time.Duration(sleep.Ms) * time.Millisecond)
+}
+
 // Receive a JSON-encoded Command object, which contains a list of Keystroke objects, and execute it.
-func ExecuteJSONEvents(ctx context.Context, logger logging.Logger, jsonArg []byte) error {
-	var command Command
-	err := command.UnmarshalJSON(jsonArg)
-	if err != nil {
+func ExecuteJSONEvents(ctx context.Context, logger logging.Logger, jsonCmd []byte, jsonCfg []byte) error {
+	var command doCommand
+	if err := json.Unmarshal(jsonCmd, &command); err != nil {
 		return err
 	}
-	return handleEvents(command)
+
+	var macros Macros
+	if err := json.Unmarshal(jsonCfg, &macros); err != nil {
+		return err
+	}
+	return handleEvents(command.Commands, macros)
 }
