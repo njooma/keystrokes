@@ -32,11 +32,11 @@ The following attributes are available for this model:
       },
       {
         "command": "keystroke",
-        "mode": "sequential"
+        "mode": "sequential",
         "keys": [
           "notepad",
           "VK_ENTER"
-        ],
+        ]
       },
       {
         "command": "keystroke",
