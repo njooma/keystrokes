@@ -3,7 +3,7 @@
   "module_id": "njooma:keystrokes",
   "visibility": "public_unlisted",
   "url": "https://github.com/njooma/keystrokes",
-  "description": "Modular generic component: keypresser",
+  "description": "Send key and mouse inputs to Windows machines",
   "models": [
     {
       "api": "rdk:component:generic",
@@ -11,5 +11,11 @@
     }
   ],
   "entrypoint": "keystrokes.exe",
-  "first_run": ""
+  "first_run": "",
+  "build": {
+    "build": "make module.tar.gz",
+    "setup": "make setup",
+    "path": "module.tar.gz",
+    "arch": ["windows/amd64"]
+  }
 }
