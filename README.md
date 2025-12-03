@@ -82,7 +82,7 @@ Send a `doCommand` to the component. The structure of the command must be as fol
         {"command": "keystroke", "mode": "<sequential|simultaneous>", "keys": ["<keys>", "<to>", "<press>"]},
 		{"command": "mouse_event", "type": "<left_click|right_click|double_click>", "x": <x_coord>, "y": <y_coord>},
 		{"command": "sleep", "ms": <MS_TO_SLEEP>},
-		{"command": "macro", "name" "<macro_name>"}
+		{"command": "macro", "name": "<macro_name>"}
     ]
 }
 ```
